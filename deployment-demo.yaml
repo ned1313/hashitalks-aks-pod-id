@@ -1,0 +1,21 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  labels:
+    app: demo
+    aadpodidbinding: demo
+  name: demo
+  namespace: default
+spec:
+  template:
+    metadata:
+      labels:
+        app: demo
+        aadpodidbinding: demo
+    spec:
+      containers:
+      - name: demo
+        image: nginx
+        imagePullPolicy: Always
+      nodeSelector:
+        beta.kubernetes.io/os: linux
