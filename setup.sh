@@ -8,6 +8,14 @@ mc_rg=$(az aks show -g <cluster_resource_group> -n <cluster_name> --query nodeRe
 
 vault_msi=$(az identity create -g $mc_rg -n vault-msi -o json)
 
+obj_id=$(echo $vault_msi | jq .principalId -r)
+
+rg=$(az group show --name $mc_rg)
+
+rg_id=$(echo $rg | jq .id -r)
+
+az role assignment create --role Contributor --assignee $obj_id --scope $rg_id
+
 # Use helm charts to install Pod ID
 helm repo add aad-pod-identity https://raw.githubusercontent.com/Azure/aad-pod-identity/master/charts
 
@@ -60,10 +68,11 @@ kubectl apply -f deployment-demo.yaml
 
 apt update && apt install jq curl -y
 
-metadata=$(curl -H Metadata:true "http://169.254.169.254/metadata/instance?api-version=2017-08-01")
+metadata=$(curl -H Metadata:true "http://169.254.169.254/metadata/instance?api-version=2019-08-15")
 
 subscription_id=$(echo $metadata | jq -r .compute.subscriptionId)
 vm_name=$(echo $metadata | jq -r .compute.name)
+vmss_name=$(echo $metadata | jq -r .compute.vmScaleSetName)
 resource_group_name=$(echo $metadata | jq -r .compute.resourceGroupName)
 
 response=$(curl 'http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fmanagement.azure.com%2F' -H Metadata:true -s)
@@ -76,7 +85,8 @@ cat <<EOF > auth_payload_complete.json
     "jwt": "$jwt",
     "subscription_id": "$subscription_id",
     "resource_group_name": "$resource_group_name",
-    "vm_name": "$vm_name"
+    "vm_name": "$vm_name",
+    "vmss_name": "$vmss_name"
 }
 EOF
 
