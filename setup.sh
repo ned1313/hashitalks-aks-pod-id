@@ -13,6 +13,8 @@ helm repo add aad-pod-identity https://raw.githubusercontent.com/Azure/aad-pod-i
 
 helm install aksid aad-pod-identity/aad-pod-identity
 
+
+
 kubectl apply -f aadpodidentity.yaml
 
 kubectl apply -f aadpodidentitybinding.yaml
@@ -86,3 +88,36 @@ export VAULT_ADDR=http://LB_PUBLIC_IP:8200
 
 
 login=$(curl --request POST --data @auth_payload_complete.json $VAULT_ADDR/v1/auth/azure/login)
+
+
+# Show details
+
+# AKS ID info
+helm status aksid
+
+helm get all aksid
+
+kubectl get pods
+kubectl get daemonset
+kubectl get crds
+
+# Show crd info for Azure Identity
+kubectl get azureidentities.aadpodidentity.k8s.io
+
+kubectl describe azureidentities.aadpodidentity.k8s.io vault-msi
+
+kubectl get azureidentitybindings.aadpodidentity.k8s.io
+
+kubectl describe azureidentitybindings.aadpodidentity.k8s.io vault-id-binding
+
+# Show vault pod and label
+
+kubectl get pods
+
+kubectl describe pods vault-0
+
+kubectl get azureassignedidentities.aadpodidentity.k8s.io
+
+# Show getting a token for the demo pod
+
+kubectl exec -it demo-8649d767b-sh6kj -- bash
