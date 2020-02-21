@@ -1,8 +1,8 @@
 apiVersion: "aadpodidentity.k8s.io/v1"
 kind: AzureIdentity
 metadata:
-  name: vault-msi
+  name: ${msi_name}
 spec:
   type: 0
-  ResourceID: RESOURCE_ID
-  ClientID: CLIENT_ID
+  ResourceID: ${msi_resource_id}
+  ClientID: ${msi_client_id}
