@@ -1,72 +1,103 @@
-# This script assumes that an AKS cluster has already been provisioned
+# Before running these commands you should provision an AKS cluster
+# using the Terraform files in cluster creation. Follow the steps in
+# the cluster-creation.sh script to provision the cluster
 
-# This script also uses the Azure CLI
-
-# Create an Azure Identity in the same resource group as AKS cluster
-
-mc_rg=$(az aks show -g <cluster_resource_group> -n <cluster_name> --query nodeResourceGroup -o tsv)
-
-vault_msi=$(az identity create -g $mc_rg -n vault-msi -o json)
-
-obj_id=$(echo $vault_msi | jq .principalId -r)
-
-rg=$(az group show --name $mc_rg)
-
-rg_id=$(echo $rg | jq .id -r)
-
-az role assignment create --role Contributor --assignee $obj_id --scope $rg_id
+# This script assumes that you have the following installed
+#  - Azure CLI
+#  - kubectl
+#  - helm (version 3+)
+#  - jq
 
 # Use helm charts to install Pod ID
 helm repo add aad-pod-identity https://raw.githubusercontent.com/Azure/aad-pod-identity/master/charts
 
 helm install aksid aad-pod-identity/aad-pod-identity
 
+# Create the pod identity and pod identity bindings for the 
+# vault-msi and demo-msi Azure Identities
 
+kubectl apply -f ./cluster_creation/yaml_files/aadpodidentity-vault.yaml
 
-kubectl apply -f aadpodidentity.yaml
+kubectl apply -f ./cluster_creation/yaml_files/aadpodidentitybinding-vault.yaml
 
-kubectl apply -f aadpodidentitybinding.yaml
+kubectl apply -f ./cluster_creation/yaml_files/aadpodidentity-demo.yaml
+
+kubectl apply -f ./cluster_creation/yaml_files/aadpodidentitybinding-demo.yaml
 
 # Use Helm to install Vault
+# Refer to https://www.vaultproject.io/docs/platform/k8s/helm/
 
-git clone 
+git clone https://github.com/hashicorp/vault-helm.git
 
+cd vault-helm
 
-# Enable Azure auth for Vault
+git checkout v0.3.3
+
+cd ..
+
+helm install vault ./vault-helm  --values vault-values.yaml
+
+### Initialize vault
 
 kubectl get svc
+
+# Change the LB_PUBLIC_IP to the public IP address of the 
+# Azure load balancer
 
 export VAULT_SKIP_VERIFY=true
 export VAULT_ADDR=http://LB_PUBLIC_IP:8200
 
+vault operator init -key-shares 1 -key-threshold 1
+
+# Take note of the vault root token and unseal key
+
+vault operator unseal 
+
+# Enter the unseal ley
+
+vault login 
+
+# Enter the root token
+
+# Enable Azure auth for Vault
+
 vault auth enable azure
+
+# Enter the tenant ID (the ID for you Azure AD tenant)
 
 vault write auth/azure/config \
     tenant_id=AZURE_TENANT_ID \
     resource=https://management.azure.com/
 
+# Update the SUBSCRIPTION_ID and AKS_RESOURCE_GROUP from 
+# the Terraform output
+
 vault write auth/azure/role/aks-role \
     policies="aks" \
-    bound_subscription_ids=$sub_id \
-    bound_resource_groups=$mc_rg
+    bound_subscription_ids=SUBSCRIPTION_ID \
+    bound_resource_groups=AKS_RESOURCE_GROUP
+
+# Enable a k/v store and add a secret
 
 vault secrets enable -path=aks kv
 
 vault kv put aks/akspass password=42
 
+# Create a policy for the k/v store and the demo-msi
+
 vault policy write aks aks-pol.hcl
-
-# Create an Azure identity for a demo pod
-
-demo_msi=$(az identity create -g $mc_rg -n demo-msi -o json)
-
-kubectl apply -f aadpodidentity-demo.yaml
-
-kubectl apply -f aadpodidentitybinding-demo.yaml
 
 # Now deploy a simple pod with the proper label
 
 kubectl apply -f deployment-demo.yaml
+
+# And connect into the pod
+
+kubectl get pods
+
+kubectl exec -it DEMO_POD_NAME -- bash
+
+# From inside the pod session run the following
 
 apt update && apt install jq curl -y
 
@@ -96,11 +127,12 @@ export VAULT_SKIP_VERIFY=true
 export VAULT_ADDR=http://LB_PUBLIC_IP:8200
 
 
-
+# This part will fail until the User Assigned MSI is supported by Azure Auth
 login=$(curl --request POST --data @auth_payload_complete.json $VAULT_ADDR/v1/auth/azure/login)
 
+echo $login
 
-# Show details
+# Exit the pod and view some details about the deployment
 
 # AKS ID info
 helm status aksid
@@ -127,7 +159,3 @@ kubectl get pods
 kubectl describe pods vault-0
 
 kubectl get azureassignedidentities.aadpodidentity.k8s.io
-
-# Show getting a token for the demo pod
-
-kubectl exec -it demo-8649d767b-sh6kj -- bash
