@@ -3,17 +3,17 @@
 ############################################################
 
 variable "location" {
-  type    = "string"
+  type    = string
   default = "eastus2"
 }
 
 variable "agents_size" {
-  type    = "string"
+  type    = string
   default = "Standard_B2s"
 }
 
 variable "prefix" {
-  type    = "string"
+  type    = string
   default = "vault"
 }
 
@@ -118,7 +118,7 @@ resource "azurerm_kubernetes_cluster" "vault" {
   default_node_pool {
     name               = "default"
     node_count         = 3
-    vm_size            = var.vm_size
+    vm_size            = var.agents_size
     type               = "VirtualMachineScaleSets"
   }
 
@@ -170,7 +170,7 @@ resource "azurerm_role_definition" "vault-role" {
 }
 
 resource "azurerm_role_assignment" "vault-role-assignment" {
-  scope              = azurerm_kubernetes_cluster.vault.node_resource_group
+  scope              = "${data.azurerm_subscription.primary.id}/resourceGroups/${azurerm_kubernetes_cluster.vault.node_resource_group}"
   role_definition_id = azurerm_role_definition.vault-role.id
   principal_id       = azurerm_user_assigned_identity.vault_msi.principal_id
 }

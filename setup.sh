@@ -7,6 +7,10 @@
 #  - kubectl
 #  - helm (version 3+)
 #  - jq
+#  - git
+
+# Get the K8s credentials from AKS
+az aks get-credentials -n vault-aks -g vault-aks
 
 # Use helm charts to install Pod ID
 helm repo add aad-pod-identity https://raw.githubusercontent.com/Azure/aad-pod-identity/master/charts
@@ -44,8 +48,14 @@ kubectl get svc
 # Change the LB_PUBLIC_IP to the public IP address of the 
 # Azure load balancer
 
+
+#Linux/Mac
 export VAULT_SKIP_VERIFY=true
 export VAULT_ADDR=http://LB_PUBLIC_IP:8200
+
+#Windows PowerShell
+$env:VAULT_SKIP_VERIFY="true"
+$env:VAULT_ADDR="http://LB_PUBLIC_IP:8200"
 
 vault operator init -key-shares 1 -key-threshold 1
 
@@ -65,17 +75,14 @@ vault auth enable azure
 
 # Enter the tenant ID (the ID for you Azure AD tenant)
 
-vault write auth/azure/config \
-    tenant_id=AZURE_TENANT_ID \
-    resource=https://management.azure.com/
+az account show --query tenantId -o tsv
+
+vault write auth/azure/config tenant_id=AZURE_TENANT_ID resource=https://management.azure.com/
 
 # Update the SUBSCRIPTION_ID and AKS_RESOURCE_GROUP from 
 # the Terraform output
 
-vault write auth/azure/role/aks-role \
-    policies="aks" \
-    bound_subscription_ids=SUBSCRIPTION_ID \
-    bound_resource_groups=AKS_RESOURCE_GROUP
+vault write auth/azure/role/aks-role policies="aks" bound_subscription_ids=SUBSCRIPTION_ID bound_resource_groups=AKS_RESOURCE_GROUP
 
 # Enable a k/v store and add a secret
 
